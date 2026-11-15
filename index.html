@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>자기장 속 전류가 받는 힘과 전동기 원리 실험실</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js (3D 시뮬레이션) 로드 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts: Noto Sans KR & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            overflow-x: hidden;
+        }
+        /* 3D 캔버스 컨테이너 스타일 */
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 440px;
+            background: radial-gradient(circle at center, #f1f5f9 0%, #cbd5e1 100%);
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(15,23,42,0.12);
+            cursor: grab;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        @media (min-width: 1024px) {
+            #canvas-container {
+                height: 540px;
+            }
+        }
+        /* 탭 활성화 및 애니메이션 */
+        .tab-active {
+            background-color: #2563eb;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+        }
+        .pulse-hint {
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+            70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- 상단 헤더 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-xl shadow-md">
+                    F
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">자기장 속 전류가 받는 힘 탐구실</h1>
+                    <p class="text-xs text-slate-500">중학 과학 · 오른손 법칙과 전동기 회전 원리 시뮬레이션</p>
+                </div>
+            </div>
+
+            <!-- 실험 모드 선택 탭 -->
+            <nav class="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto" role="tablist">
+                <button id="tab-swing" onclick="switchMode('swing')" class="tab-active flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5">
+                    <span>🧲</span> 1. 전기 그네 실험
+                </button>
+                <button id="tab-motor" onclick="switchMode('motor')" class="text-slate-600 hover:text-slate-900 flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5">
+                    <span>⚙️</span> 2. 전동기 회전 원리
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- 왼쪽: 3D 시뮬레이션 뷰어 (7칸) -->
+            <div class="lg:col-span-7 flex flex-col gap-3">
+                <div id="canvas-container">
+                    <!-- 우측 상단: 시점 초기화 & 오른손 법칙 가이드 버튼 -->
+                    <div class="absolute top-3 right-3 flex flex-col gap-2 z-10">
+                        <button onclick="resetCamera()" class="bg-slate-900/85 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700 backdrop-blur-md shadow-lg transition flex items-center gap-1.5">
+                            <span>🔄</span> 기본 시점
+                        </button>
+                        <button onclick="toggleRightHandGuide()" class="bg-amber-500/95 hover:bg-amber-500 text-slate-950 text-xs font-bold px-3 py-2 rounded-xl shadow-lg transition flex items-center gap-1.5">
+                            <span>✋</span> 오른손 법칙 힌트
+                        </button>
+                    </div>
+
+                    <!-- 우측 하단: 실험 장치 크기(확대/축소) 조절 컨트롤 -->
+                    <div class="absolute bottom-3 right-3 bg-slate-900/85 backdrop-blur-md text-white px-3 py-2 rounded-xl border border-slate-700/80 text-xs flex items-center gap-2 select-none shadow-lg z-10">
+                        <span class="font-bold text-slate-300">🔍 크기</span>
+                        <button onclick="changeModelScale(-0.15)" class="w-6 h-6 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-600 font-bold flex items-center justify-center">-</button>
+                        <input id="scale-slider" type="range" min="0.6" max="1.6" step="0.05" value="1.0" oninput="setModelScale(this.value)" class="w-20 accent-blue-500 cursor-pointer">
+                        <button onclick="changeModelScale(0.15)" class="w-6 h-6 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-600 font-bold flex items-center justify-center">+</button>
+                        <span id="scale-value-label" class="w-9 text-right font-mono font-bold text-blue-300">100%</span>
+                    </div>
+
+                    <!-- 오른손 법칙 오버레이 가이드 카드 (토글) -->
+                    <div id="right-hand-card" class="hidden absolute bottom-14 right-3 w-72 bg-white/95 backdrop-blur-md text-slate-800 p-4 rounded-2xl shadow-2xl border border-amber-300 z-20">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold text-sm text-amber-700 flex items-center gap-1">✋ 오른손 법칙 사용법</h3>
+                            <button onclick="toggleRightHandGuide()" class="text-slate-400 hover:text-slate-700 text-lg leading-none">&times;</button>
+                        </div>
+                        <ul class="text-xs space-y-1.5 text-slate-700 leading-relaxed">
+                            <li><strong class="text-sky-600">1. 네 손가락:</strong> <strong>자기장 방향 (N극 → S극)</strong>으로 쭉 폅니다.</li>
+                            <li><strong class="text-red-600">2. 엄지손가락:</strong> <strong>전류 방향 ((+) → (-))</strong>을 향하게 합니다.</li>
+                            <li><strong class="text-purple-600">3. 손바닥 방향:</strong> 도선이 <strong>힘을 받아 움직이는 방향</strong>입니다!</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 3D 시뮬레이션 화면 밖: 방향·극성 표시 선택 창 -->
+                <div id="direction-control-panel" class="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-700 text-xs space-y-2.5 select-none shadow-sm">
+                    <div class="font-bold text-slate-300 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                        <span>드래그하여 360° 회전 · 방향·극성 표시 선택</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <button id="toggle-arrow-current" onclick="toggleArrowVisibility('current')" class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 transition text-left">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_#ef4444]"></span>
+                                <span>전류 방향 (I)</span>
+                            </span>
+                            <span id="badge-arrow-current" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">숨김</span>
+                        </button>
+                        <button id="toggle-arrow-magnetic" onclick="toggleArrowVisibility('magnetic')" class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 transition text-left">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]"></span>
+                                <span>자기장 방향 (B)</span>
+                            </span>
+                            <span id="badge-arrow-magnetic" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">숨김</span>
+                        </button>
+                        <button id="toggle-arrow-force" onclick="toggleArrowVisibility('force')" class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 transition text-left">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-purple-400 shadow-[0_0_6px_#c084fc]"></span>
+                                <span id="label-toggle-force">힘 방향 (F)</span>
+                            </span>
+                            <span id="badge-arrow-force" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">숨김</span>
+                        </button>
+                        <!-- 전기 그네 모드 전용: 전원 극성 표시 토글 버튼 -->
+                        <button id="toggle-label-polarity" onclick="toggleLabelVisibility('polarity')" class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-blue-950/90 hover:bg-slate-700 border border-blue-400 transition text-left">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]"></span>
+                                <span>전원 극성 ((+)/(-))</span>
+                            </span>
+                            <span id="badge-label-polarity" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500 text-white">표시중</span>
+                        </button>
+                        <!-- 공통: 자석 N극/S극 표시 토글 버튼 -->
+                        <button id="toggle-label-magnetPoles" onclick="toggleLabelVisibility('magnetPoles')" class="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-blue-950/90 hover:bg-slate-700 border border-blue-400 transition text-left">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_6px_#fb7185]"></span>
+                                <span>자석 극성 (N/S)</span>
+                            </span>
+                            <span id="badge-label-magnetPoles" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500 text-white">표시중</span>
+                        </button>
+                        <!-- 전동기 모드 전용: (가), (나) 개별 힘 표시 버튼 -->
+                        <div id="motor-individual-force-toggles" class="hidden col-span-2 sm:col-span-2 grid grid-cols-2 gap-2">
+                            <button id="toggle-arrow-forceGa" onclick="toggleArrowVisibility('forceGa')" class="flex items-center justify-between gap-1 px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 transition text-left">
+                                <span class="text-[11px] font-bold text-amber-300">(가) 힘</span>
+                                <span id="badge-arrow-forceGa" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">숨김</span>
+                            </button>
+                            <button id="toggle-arrow-forceNa" onclick="toggleArrowVisibility('forceNa')" class="flex items-center justify-between gap-1 px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 transition text-left">
+                                <span class="text-[11px] font-bold text-emerald-300">(나) 힘</span>
+                                <span id="badge-arrow-forceNa" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">숨김</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3D 뷰어 하단 상태 요약 바 -->
+                <div class="bg-white px-4 py-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs sm:text-sm shadow-sm">
+                    <div class="flex items-center gap-2 font-medium text-slate-700">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span id="sim-status-badge">실험 준비 완료: 조건을 확인하고 움직임을 예측해 보세요!</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 학생 탐구 활동 패널 (5칸) -->
+            <div class="lg:col-span-5 space-y-4">
+                
+                <!-- ========================================== -->
+                <!-- [모드 1] 전기 그네 실험 패널 (그림 VII-14) -->
+                <!-- ========================================== -->
+                <div id="panel-swing" class="space-y-4">
+                    <!-- 단계 1: 실험 조건 설정 카드 -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">STEP 1 · 실험 조건 설정</span>
+                            <button onclick="setTextbookCase('default')" class="text-xs text-slate-500 hover:text-blue-600 underline font-medium">기본 상태로 초기화</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                            <!-- 전류 방향 변경 -->
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between gap-2">
+                                <div class="text-xs text-slate-500 font-medium">코일에 흐르는 전류 방향</div>
+                                <div id="label-current-dir" class="font-bold text-sm text-red-600">바깥쪽 → 안쪽</div>
+                                <button onclick="toggleSwingCurrent()" class="w-full py-2 px-3 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition shadow-xs">
+                                    🔄 전류 방향 바꾸기
+                                </button>
+                            </div>
+
+                            <!-- 자기장 방향 변경 -->
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between gap-2">
+                                <div class="text-xs text-slate-500 font-medium">말굽자석 극 배치 (자기장)</div>
+                                <div id="label-magnet-dir" class="font-bold text-sm text-sky-600">아래 N극 / 위 S극</div>
+                                <button onclick="toggleSwingMagnet()" class="w-full py-2 px-3 bg-white hover:bg-sky-50 text-sky-600 border border-sky-200 rounded-lg text-xs font-bold transition shadow-xs">
+                                    🧲 자석 두 극 바꾸기
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 전기 그네 전류 세기 조절 슬라이더 -->
+                        <div class="p-3 rounded-xl bg-red-50/60 border border-red-200/80 flex items-center justify-between gap-3">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-red-800">⚡ 전류의 세기 조절</span>
+                                <span class="text-[11px] text-red-600/80">세기가 클수록 받는 힘(기울기)이 커집니다</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input id="swing-current-strength" type="range" min="1" max="3" step="1" value="2" oninput="setCurrentStrength('swing', this.value)" class="w-24 accent-red-600 cursor-pointer">
+                                <span id="label-swing-strength" class="text-xs font-bold text-red-700 bg-white px-2 py-1 rounded-md border border-red-200 w-14 text-center">2단계</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 단계 2: 학생 예측 선택 -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <span class="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">STEP 2 · 먼저 머릿속으로 예측하기</span>
+                        <h2 class="text-base font-bold text-slate-800 mt-2 mb-1">전기 그네는 어느 쪽으로 힘을 받아 움직일까요?</h2>
+                        <p class="text-xs text-slate-500 mb-3">예측 버튼을 누른 뒤 전원 스위치를 켜서 확인해 보세요.</p>
+
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <button id="pred-outward" onclick="selectSwingPrediction('outward')" class="p-3.5 rounded-xl border-2 border-slate-200 hover:border-blue-400 text-left transition flex flex-col gap-1">
+                                <span class="text-lg">➡️</span>
+                                <span class="font-bold text-sm text-slate-800">말굽자석 바깥쪽</span>
+                                <span class="text-xs text-slate-500">자석 밖으로 밀려난다</span>
+                            </button>
+                            <button id="pred-inward" onclick="selectSwingPrediction('inward')" class="p-3.5 rounded-xl border-2 border-slate-200 hover:border-blue-400 text-left transition flex flex-col gap-1">
+                                <span class="text-lg">⬅️</span>
+                                <span class="font-bold text-sm text-slate-800">말굽자석 안쪽</span>
+                                <span class="text-xs text-slate-500">자석 안으로 들어간다</span>
+                            </button>
+                        </div>
+
+                        <!-- 전원 스위치 (실험 실행) -->
+                        <button id="btn-swing-power" onclick="toggleSwingPower()" class="w-full py-3.5 rounded-xl font-bold text-base text-white bg-blue-600 hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2 pulse-hint">
+                            <span>⚡</span> <span id="label-swing-power">전원 스위치 켜기 (결과 확인)</span>
+                        </button>
+
+                        <!-- 결과 피드백 박스 -->
+                        <div id="swing-feedback" class="hidden mt-4 p-4 rounded-xl text-sm border"></div>
+                    </div>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- [모드 2] 전동기 회전 원리 패널 (두 번째 이미지) -->
+                <!-- ========================================== -->
+                <div id="panel-motor" class="hidden space-y-4">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold uppercase tracking-wider text-purple-600 bg-purple-50 px-2.5 py-1 rounded-md">전동기의 회전 원리 탐구</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs text-slate-500">전류:</span>
+                                <button onclick="toggleMotorCurrent()" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md text-slate-700">
+                                    방향 반전 ⇄
+                                </button>
+                            </div>
+                        </div>
+                        <h2 class="text-base font-bold text-slate-800 mb-1">도선 (가)와 (나)가 받는 힘의 방향은?</h2>
+                        <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+                            왼쪽 <strong>N극</strong>에서 오른쪽 <strong>S극</strong>으로 자기장이 형성되어 있습니다. 전원 극성을 보고 <strong>(가)</strong>와 <strong>(나)</strong> 부분이 받는 힘의 방향을 각각 예측해 보세요!
+                        </p>
+
+                        <!-- 전동기 전류 세기 조절 슬라이더 -->
+                        <div class="p-3 rounded-xl bg-red-50/60 border border-red-200/80 mb-3 flex items-center justify-between gap-3">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-red-800">⚡ 전류의 세기 조절</span>
+                                <span class="text-[11px] text-red-600/80">세기가 클수록 회전 속도가 빨라집니다</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input id="motor-current-strength" type="range" min="1" max="3" step="1" value="2" oninput="setCurrentStrength('motor', this.value)" class="w-24 accent-red-600 cursor-pointer">
+                                <span id="label-motor-strength" class="text-xs font-bold text-red-700 bg-white px-2 py-1 rounded-md border border-red-200 w-14 text-center">2단계</span>
+                            </div>
+                        </div>
+
+                        <!-- (가) 도선 예측 -->
+                        <div class="mb-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-bold text-sm text-slate-800">1. 왼쪽 도선 <span class="text-amber-600 font-black">(가)</span>가 받는 힘</span>
+                                <span id="motor-ga-current-desc" class="text-xs text-slate-500 font-medium">전원 (+)극 연결 쪽</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="pred-ga-up" onclick="selectMotorPrediction('ga', 'up')" class="py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition">
+                                    ⬆️ 위쪽 방향
+                                </button>
+                                <button id="pred-ga-down" onclick="selectMotorPrediction('ga', 'down')" class="py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition">
+                                    ⬇️ 아래쪽 방향
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- (나) 도선 예측 -->
+                        <div class="mb-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-bold text-sm text-slate-800">2. 오른쪽 도선 <span class="text-emerald-600 font-black">(나)</span>가 받는 힘</span>
+                                <span id="motor-na-current-desc" class="text-xs text-slate-500 font-medium">전원 (-)극 연결 쪽</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="pred-na-up" onclick="selectMotorPrediction('na', 'up')" class="py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition">
+                                    ⬆️ 위쪽 방향
+                                </button>
+                                <button id="pred-na-down" onclick="selectMotorPrediction('na', 'down')" class="py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition">
+                                    ⬇️ 아래쪽 방향
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 전동기 작동 버튼 -->
+                        <div class="flex gap-2">
+                            <button id="btn-motor-power" onclick="toggleMotorPower()" class="flex-1 py-3.5 rounded-xl font-bold text-sm sm:text-base text-white bg-purple-600 hover:bg-purple-700 shadow-md transition flex items-center justify-center gap-2">
+                                <span>🔄</span> <span id="label-motor-power">전원 연결하여 반 바퀴 회전 확인</span>
+                            </button>
+                            <button id="btn-motor-step" onclick="resetMotorPosition()" class="hidden px-3 py-3.5 rounded-xl font-bold text-xs bg-slate-800 text-white hover:bg-slate-700 transition" title="원위치로 초기화">
+                                원위치
+                            </button>
+                        </div>
+
+                        <!-- 전동기 피드백 박스 -->
+                        <div id="motor-feedback" class="hidden mt-4 p-4 rounded-xl text-sm border"></div>
+                    </div>
+
+                    <!-- 전동기 심화 생각해보기 -->
+                    <div class="bg-slate-800 text-slate-100 p-4 rounded-2xl text-xs space-y-2 shadow-sm">
+                        <div class="font-bold text-amber-400 flex items-center gap-1.5">
+                            <span>💡</span> 생각 키우기: 코일이 계속 한 방향으로 도는 이유는?
+                        </div>
+                        <p class="text-slate-300 leading-relaxed">
+                            코일이 반 바퀴(180°) 돌 때마다 양쪽 끝의 <strong>정류자(반원형 구리 조각)</strong>가 브러시와 닿는 위치가 바뀌면서 코일에 흐르는 <strong>전류의 방향이 반대로 전환</strong>됩니다. 덕분에 왼쪽에 오는 도선은 항상 같은 방향의 힘을 받아 한 방향으로 계속 회전합니다!
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // =========================================================================
+        // 1. 애플리케이션 전역 상태 관리
+        // =========================================================================
+        const state = {
+            mode: 'swing', // 'swing' | 'motor'
+            showArrows: {
+                current: false,
+                magnetic: false,
+                force: false,
+                forceGa: false,
+                forceNa: false
+            },
+            showLabels: {
+                polarity: true,
+                magnetPoles: true
+            },
+            swing: {
+                currentDir: 1, // 1: 바깥쪽 -> 안쪽(-Z), -1: 안쪽 -> 바깥쪽(+Z)
+                currentStrength: 2, // 1: 약함, 2: 보통, 3: 강함
+                magnetDir: 1,  // 1: 아래 N / 위 S (+Y), -1: 위 N / 아래 S (-Y)
+                powerOn: false,
+                prediction: null,
+                currentAngle: 0,
+                targetAngle: 0
+            },
+            motor: {
+                currentDir: 1, // 1: (가) 안쪽(-Z), (나) 바깥쪽(+Z) | -1: 반대
+                currentStrength: 2, // 1: 약함, 2: 보통, 3: 강함
+                powerOn: false,
+                predGa: null,
+                predNa: null,
+                rotationAngle: 0,
+                targetRotationAngle: 0
+            }
+        };
+
+        // =========================================================================
+        // 2. Three.js 3D 씬, 카메라, 조명 및 모델 구성
+        // =========================================================================
+        let scene, camera, renderer;
+        let swingGroup, motorGroup;
+        let swingCoilPivot, swingTopPole, swingBottomPole, swingTopLabel, swingBottomLabel;
+        let swingFrontWireLabel, swingBackWireLabel;
+        let swingMagneticArrows, swingCurrentArrows, swingForceArrow;
+        let motorCoilPivot, motorMagneticArrows, motorCurrentArrows, motorForceArrows;
+        let motorLeftTermLabel, motorRightTermLabel;
+        let motorLeftNPole, motorRightSPole, motorNLabel, motorSLabel;
+        let modelScale = 1.0;
+
+        // 카메라 궤도 제어 변수
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraTheta = 0.42;
+        let cameraPhi = 1.05;
+        let cameraRadius = 11.2;
+
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
+            updateCameraPosition();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 조명 설정 (입체적 교과서 삽화 느낌)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.72);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.9);
+            dirLight1.position.set(8, 12, 10);
+            dirLight1.castShadow = true;
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0x93c5fd, 0.4);
+            dirLight2.position.set(-8, -4, -6);
+            scene.add(dirLight2);
+
+            // 실험 테이블 원형 받침판
+            const tableGeo = new THREE.CylinderGeometry(5.6, 5.8, 0.25, 64);
+            const tableMat = new THREE.MeshStandardMaterial({
+                color: 0xe2e8f0,
+                roughness: 0.65,
+                metalness: 0.1
+            });
+            const table = new THREE.Mesh(tableGeo, tableMat);
+            table.position.y = -2.45;
+            table.receiveShadow = true;
+            scene.add(table);
+
+            // 두 가지 실험 장치 빌드
+            buildSwingScene();
+            buildMotorScene();
+
+            motorGroup.visible = false;
+
+            setupInteractions(container);
+            window.addEventListener('resize', onWindowResize);
+
+            updateSwingVisuals();
+            updateMotorVisuals();
+        }
+
+        // 고해상도 3D 텍스트 스프라이트 생성 유틸리티
+        function createLabelSprite(text, bgColor, textColor = '#ffffff', scaleX = 1.6, scaleY = 0.52) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 166;
+            const ctx = canvas.getContext('2d');
+
+            if (bgColor) {
+                ctx.fillStyle = bgColor;
+                ctx.beginPath();
+                ctx.roundRect(14, 14, 484, 138, 36);
+                ctx.fill();
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+                ctx.stroke();
+            }
+
+            ctx.font = 'bold 56px "Noto Sans KR", sans-serif';
+            ctx.fillStyle = textColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 256, 85);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                depthTest: false // 3D 물체에 파묻혀 글자가 잘리는 현상 방지
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(scaleX, scaleY, 1);
+            sprite.renderOrder = 20;
+            return sprite;
+        }
+
+        // 지시선(Leader Line) 생성 유틸리티
+        function createLeaderLine(p1, p2, colorHex = 0xcbd5e1) {
+            const geo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(...p1),
+                new THREE.Vector3(...p2)
+            ]);
+            const mat = new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: 0.75 });
+            return new THREE.Line(geo, mat);
+        }
+
+        // 입체 화살표 생성 유틸리티
+        function create3DArrow(length, colorHex, shaftRadius = 0.055, headRadius = 0.14, headLength = 0.32) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                emissive: colorHex,
+                emissiveIntensity: 0.35,
+                roughness: 0.25
+            });
+
+            const shaftLen = Math.max(0.1, length - headLength);
+            const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLen, 16);
+            const shaft = new THREE.Mesh(shaftGeo, mat);
+            shaft.position.y = shaftLen / 2;
+            group.add(shaft);
+
+            const headGeo = new THREE.ConeGeometry(headRadius, headLength, 20);
+            const head = new THREE.Mesh(headGeo, mat);
+            head.position.y = shaftLen + headLength / 2;
+            group.add(head);
+
+            return group;
+        }
+
+        // -------------------------------------------------------------------------
+        // [모델 1] 교과서 스타일 전기 그네 (그림 VII-14)
+        // -------------------------------------------------------------------------
+        function buildSwingScene() {
+            swingGroup = new THREE.Group();
+            scene.add(swingGroup);
+
+            // 1. 둥근 곡선이 살아있는 메탈릭 말굽자석
+            const curveGroup = new THREE.Group();
+            const silverMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.32, metalness: 0.65 });
+            const nMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.35, metalness: 0.15 });
+            const sMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.35, metalness: 0.15 });
+
+            // U자형 뒷부분 곡선 (ExtrudeGeometry)
+            const uShape = new THREE.Shape();
+            const outerR = 1.75;
+            const innerR = 1.05;
+            uShape.absarc(0, 0, outerR, Math.PI * 0.5, Math.PI * 1.5, false);
+            uShape.lineTo(0, -innerR);
+            uShape.absarc(0, 0, innerR, Math.PI * 1.5, Math.PI * 0.5, true);
+            uShape.closePath();
+
+            const uGeo = new THREE.ExtrudeGeometry(uShape, {
+                depth: 1.3,
+                bevelEnabled: true,
+                bevelSegments: 4,
+                steps: 1,
+                bevelSize: 0.05,
+                bevelThickness: 0.05
+            });
+            uGeo.translate(-0.7, 0, -0.65);
+            const uCurveMesh = new THREE.Mesh(uGeo, silverMat);
+            uCurveMesh.castShadow = true;
+            uCurveMesh.receiveShadow = true;
+            curveGroup.add(uCurveMesh);
+
+            // 위쪽 / 아래쪽 자극 블록
+            const poleGeo = new THREE.BoxGeometry(1.75, 0.72, 1.38);
+            swingTopPole = new THREE.Mesh(poleGeo, sMat.clone());
+            swingTopPole.position.set(0.15, 1.4, 0);
+            swingTopPole.castShadow = true;
+            curveGroup.add(swingTopPole);
+
+            swingBottomPole = new THREE.Mesh(poleGeo, nMat.clone());
+            swingBottomPole.position.set(0.15, -1.4, 0);
+            swingBottomPole.castShadow = true;
+            curveGroup.add(swingBottomPole);
+
+            swingGroup.add(curveGroup);
+
+            // N / S 극 라벨 (자극 블록 바깥쪽 측면으로 빼내어 코일과 간섭 방지)
+            swingTopLabel = createLabelSprite('S극', 'rgba(37, 99, 235, 0.92)', '#ffffff', 1.05, 0.42);
+            swingTopLabel.position.set(-1.35, 1.55, 0.95);
+            swingGroup.add(swingTopLabel);
+
+            swingBottomLabel = createLabelSprite('N극', 'rgba(220, 38, 38, 0.92)', '#ffffff', 1.05, 0.42);
+            swingBottomLabel.position.set(-1.35, -1.55, 0.95);
+            swingGroup.add(swingBottomLabel);
+
+            // 말굽자석 안쪽/바깥쪽 위치 안내 라벨
+            const innerSideLabel = createLabelSprite('← 자석 안쪽', 'rgba(15, 23, 42, 0.85)', '#cbd5e1', 1.35, 0.4);
+            innerSideLabel.position.set(-2.55, -0.2, 0.8);
+            swingGroup.add(innerSideLabel);
+
+            const outerSideLabel = createLabelSprite('자석 바깥쪽 →', 'rgba(15, 23, 42, 0.85)', '#cbd5e1', 1.45, 0.4);
+            outerSideLabel.position.set(2.85, -0.2, 0.8);
+            swingGroup.add(outerSideLabel);
+
+            // 2. 상단 스탠드 지지대 (코일 위쪽에서 도선을 매달아 줌)
+            const standBarGeo = new THREE.BoxGeometry(0.35, 0.25, 2.6);
+            const standMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.5 });
+            const standBar = new THREE.Mesh(standBarGeo, standMat);
+            standBar.position.set(0.35, 3.35, 0);
+            swingGroup.add(standBar);
+
+            // 3. 피벗(회전축)을 중심으로 흔들리는 사각형 에나멜선 다발 코일
+            // 교과서 그림처럼 사각형 코일의 아랫변은 N극·S극 사이(y=0)에, 윗변은 위쪽 자극(y=1.4)을 감싸 위쪽(y=2.45)에 위치
+            swingCoilPivot = new THREE.Group();
+            swingCoilPivot.position.set(0.35, 3.25, 0);
+            swingGroup.add(swingCoilPivot);
+
+            const copperMat = new THREE.MeshStandardMaterial({
+                color: 0xd97706,
+                roughness: 0.25,
+                metalness: 0.78
+            });
+
+            // 사각형 에나멜선 다발을 12겹 촘촘히 감아서 표현 (피벗 기준 y: -0.80 ~ -3.25 => 월드 좌표 y: 2.45 ~ 0.00)
+            const loopCount = 12;
+            const loopSpacing = 0.048;
+            const rectWidth = 2.05;
+            const rectHeight = 2.45;
+            const coilCenterY = -2.025; // top: -0.80 (월드 2.45), bottom: -3.25 (월드 0.0, 자석 정중앙)
+
+            for (let i = 0; i < loopCount; i++) {
+                const offsetX = (i - (loopCount - 1) / 2) * loopSpacing;
+                const r = 0.24;
+                const w = rectWidth / 2;
+                const h = rectHeight / 2;
+
+                const path = new THREE.CurvePath();
+                path.add(new THREE.LineCurve3(new THREE.Vector3(offsetX, coilCenterY - h, -w + r), new THREE.Vector3(offsetX, coilCenterY - h, w - r)));
+                path.add(new THREE.QuadraticBezierCurve3(new THREE.Vector3(offsetX, coilCenterY - h, w - r), new THREE.Vector3(offsetX, coilCenterY - h, w), new THREE.Vector3(offsetX, coilCenterY - h + r, w)));
+                path.add(new THREE.LineCurve3(new THREE.Vector3(offsetX, coilCenterY - h + r, w), new THREE.Vector3(offsetX, coilCenterY + h - r, w)));
+                path.add(new THREE.QuadraticBezierCurve3(new THREE.Vector3(offsetX, coilCenterY + h - r, w), new THREE.Vector3(offsetX, coilCenterY + h, w), new THREE.Vector3(offsetX, coilCenterY + h, w - r)));
+                path.add(new THREE.LineCurve3(new THREE.Vector3(offsetX, coilCenterY + h, w - r), new THREE.Vector3(offsetX, coilCenterY + h, -w + r)));
+                path.add(new THREE.QuadraticBezierCurve3(new THREE.Vector3(offsetX, coilCenterY + h, -w + r), new THREE.Vector3(offsetX, coilCenterY + h, -w), new THREE.Vector3(offsetX, coilCenterY + h - r, -w)));
+                path.add(new THREE.LineCurve3(new THREE.Vector3(offsetX, coilCenterY + h - r, -w), new THREE.Vector3(offsetX, coilCenterY - h + r, -w)));
+                path.add(new THREE.QuadraticBezierCurve3(new THREE.Vector3(offsetX, coilCenterY - h + r, -w), new THREE.Vector3(offsetX, coilCenterY - h, -w), new THREE.Vector3(offsetX, coilCenterY - h, -w + r)));
+
+                const tubeGeo = new THREE.TubeGeometry(path, 64, 0.024, 8, true);
+                const tubeMesh = new THREE.Mesh(tubeGeo, copperMat);
+                tubeMesh.castShadow = true;
+                swingCoilPivot.add(tubeMesh);
+            }
+
+            // 코일 양쪽 어깨 위(-0.80)에서 상단 지지대(0.10)까지 이어지는 두 가닥 매달림 도선
+            const wireGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.9, 12);
+            const wireFront = new THREE.Mesh(wireGeo, copperMat);
+            wireFront.position.set(0, -0.35, rectWidth / 2);
+            swingCoilPivot.add(wireFront);
+
+            const wireBack = new THREE.Mesh(wireGeo, copperMat);
+            wireBack.position.set(0, -0.35, -rectWidth / 2);
+            swingCoilPivot.add(wireBack);
+
+            // 전원 극성 라벨 ((+)극 / (-)극 연결)
+            swingFrontWireLabel = createLabelSprite('(+)극 연결', 'rgba(220, 38, 38, 0.9)', '#ffffff', 1.35, 0.42);
+            swingFrontWireLabel.position.set(0, 0.45, 1.15);
+            swingCoilPivot.add(swingFrontWireLabel);
+
+            swingBackWireLabel = createLabelSprite('(-)극 연결', 'rgba(37, 99, 235, 0.9)', '#ffffff', 1.35, 0.42);
+            swingBackWireLabel.position.set(0, 0.45, -1.15);
+            swingCoilPivot.add(swingBackWireLabel);
+
+            // 4. 자기장 화살표 (하늘색 3줄) + 지시선 연결된 외곽 라벨
+            swingMagneticArrows = new THREE.Group();
+            for (let dz of [-0.45, 0, 0.45]) {
+                const arrow = create3DArrow(1.75, 0x38bdf8, 0.042, 0.11, 0.26);
+                arrow.position.set(0.35, -0.88, dz);
+                swingMagneticArrows.add(arrow);
+            }
+            const magLine = createLeaderLine([0.35, 0.35, -0.45], [-0.45, 0.65, -1.25], 0x38bdf8);
+            swingMagneticArrows.add(magLine);
+            const magLabel = createLabelSprite('자기장 (B)', 'rgba(2, 132, 199, 0.95)', '#ffffff', 1.35, 0.42);
+            magLabel.position.set(-0.65, 0.72, -1.35);
+            swingMagneticArrows.add(magLabel);
+            swingGroup.add(swingMagneticArrows);
+
+            // 5. 코일 아랫변(피벗 기준 y = -3.25, 월드 y = 0.0) 전류 화살표 (빨간색) + 겹치지 않는 하단 외곽 라벨
+            swingCurrentArrows = new THREE.Group();
+            swingCurrentArrows.position.set(0, -3.25, 0);
+            const curArrow = create3DArrow(1.3, 0xef4444, 0.055, 0.14, 0.3);
+            curArrow.position.set(0, -0.18, 0);
+            swingCurrentArrows.add(curArrow);
+
+            const curLabel = createLabelSprite('전류 (I)', 'rgba(220, 38, 38, 0.95)', '#ffffff', 1.15, 0.4);
+            curLabel.position.set(0, -0.58, 0.95);
+            swingCurrentArrows.add(curLabel);
+            swingCoilPivot.add(swingCurrentArrows);
+
+            // 6. 코일이 받는 힘 화살표 (보라색) + 화살표 끝단 바깥쪽 라벨
+            swingForceArrow = new THREE.Group();
+            swingForceArrow.position.set(0, -3.25, 0);
+            const fArrow = create3DArrow(1.5, 0xa855f7, 0.065, 0.16, 0.35);
+            swingForceArrow.add(fArrow);
+
+            const fLabel = createLabelSprite('힘 (F)', 'rgba(126, 34, 206, 0.95)', '#ffffff', 1.1, 0.42);
+            fLabel.position.set(2.35, 0.05, 0);
+            swingForceArrow.add(fLabel);
+            swingCoilPivot.add(swingForceArrow);
+        }
+
+        // -------------------------------------------------------------------------
+        // [모델 2] 교과서 스타일 전동기 원리 (두 번째 이미지)
+        // -------------------------------------------------------------------------
+        function buildMotorScene() {
+            motorGroup = new THREE.Group();
+            scene.add(motorGroup);
+
+            // 1. 왼쪽 N극 / 오른쪽 S극 자석 (안쪽 면이 오목하게 파인 교과서 형태)
+            const nMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.35, metalness: 0.15 });
+            const sMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.35, metalness: 0.15 });
+
+            // 오목한 자극면 생성 함수
+            function createConcavePole(isLeft, mat) {
+                const shape = new THREE.Shape();
+                const w = 1.6;
+                const h = 0.65;
+                if (isLeft) {
+                    shape.moveTo(-w, -h);
+                    shape.lineTo(0, -h);
+                    shape.absarc(0.35, 0, h * 1.12, Math.PI * 1.32, Math.PI * 0.68, true);
+                    shape.lineTo(-w, h);
+                } else {
+                    shape.moveTo(w, -h);
+                    shape.lineTo(0, -h);
+                    shape.absarc(-0.35, 0, h * 1.12, -Math.PI * 0.32, Math.PI * 0.32, false);
+                    shape.lineTo(w, h);
+                }
+                shape.closePath();
+
+                const geo = new THREE.ExtrudeGeometry(shape, {
+                    depth: 1.9,
+                    bevelEnabled: true,
+                    bevelSegments: 3,
+                    steps: 1,
+                    bevelSize: 0.04,
+                    bevelThickness: 0.04
+                });
+                geo.translate(0, 0, -0.95);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                return mesh;
+            }
+
+            const leftNPole = createConcavePole(true, nMat);
+            leftNPole.position.set(-2.05, 0.3, -0.2);
+            motorLeftNPole = leftNPole;
+            motorGroup.add(leftNPole);
+
+            const rightSPole = createConcavePole(false, sMat);
+            rightSPole.position.set(2.05, 0.3, -0.2);
+            motorRightSPole = rightSPole;
+            motorGroup.add(rightSPole);
+
+            // 자석 극성 라벨 (자석 바깥쪽 상단 외곽에 배치하여 코일·화살표와 간섭 제거)
+            const nLabel = createLabelSprite('N극', 'rgba(220, 38, 38, 0.92)', '#ffffff', 1.0, 0.4);
+            nLabel.position.set(-3.15, 1.35, -0.2);
+            motorNLabel = nLabel;
+            motorGroup.add(nLabel);
+
+            const sLabel = createLabelSprite('S극', 'rgba(37, 99, 235, 0.92)', '#ffffff', 1.0, 0.4);
+            sLabel.position.set(3.15, 1.35, -0.2);
+            motorSLabel = sLabel;
+            motorGroup.add(sLabel);
+
+            // 2. 자기장 화살표 (N -> S, 하늘색) + 뒷쪽 상단 외곽 지시선 라벨
+            motorMagneticArrows = new THREE.Group();
+            for (let dz of [-0.65, 0, 0.65]) {
+                const arrow = create3DArrow(3.3, 0x38bdf8, 0.036, 0.095, 0.24);
+                arrow.rotation.z = -Math.PI / 2;
+                arrow.position.set(-1.65, 0.3, dz - 0.2);
+                motorMagneticArrows.add(arrow);
+            }
+            const mMagLine = createLeaderLine([0, 0.3, -0.85], [0, 1.55, -1.15], 0x38bdf8);
+            motorMagneticArrows.add(mMagLine);
+            const mMagLabel = createLabelSprite('자기장 (N→S)', 'rgba(2, 132, 199, 0.95)', '#ffffff', 1.55, 0.4);
+            mMagLabel.position.set(0, 1.65, -1.2);
+            motorMagneticArrows.add(mMagLabel);
+            motorGroup.add(motorMagneticArrows);
+
+            // 3. 회전하는 사각형 구리 코일 + 반원통형 정류자
+            motorCoilPivot = new THREE.Group();
+            motorCoilPivot.position.set(0, 0.3, 0);
+            motorGroup.add(motorCoilPivot);
+
+            const copperMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.22, metalness: 0.82 });
+
+            // 코일 경로 (교과서 그림처럼 목 부분이 정류자로 이어지는 형태)
+            const coilPoints = [
+                new THREE.Vector3(-0.22, 0, 1.85),
+                new THREE.Vector3(-0.22, 0, 0.85),
+                new THREE.Vector3(-1.15, 0, 0.85),
+                new THREE.Vector3(-1.15, 0, -1.15),
+                new THREE.Vector3(1.15, 0, -1.15),
+                new THREE.Vector3(1.15, 0, 0.85),
+                new THREE.Vector3(0.22, 0, 0.85),
+                new THREE.Vector3(0.22, 0, 1.85)
+            ];
+            const coilCurve = new THREE.CatmullRomCurve3(coilPoints, false, 'catmullrom', 0.08);
+            const coilGeo = new THREE.TubeGeometry(coilCurve, 96, 0.075, 14, false);
+            const coilMesh = new THREE.Mesh(coilGeo, copperMat);
+            coilMesh.castShadow = true;
+            motorCoilPivot.add(coilMesh);
+
+            // 반원통형 정류자 2조각 (Commutator)
+            const commMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.3, metalness: 0.85 });
+            const commLeftGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.65, 24, 1, true, Math.PI * 0.12, Math.PI * 0.76);
+            commLeftGeo.rotateX(Math.PI / 2);
+            const commLeft = new THREE.Mesh(commLeftGeo, commMat);
+            commLeft.position.set(0, 0, 1.85);
+            motorCoilPivot.add(commLeft);
+
+            const commRightGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.65, 24, 1, true, Math.PI * 1.12, Math.PI * 0.76);
+            commRightGeo.rotateX(Math.PI / 2);
+            const commRight = new THREE.Mesh(commRightGeo, commMat);
+            commRight.position.set(0, 0, 1.85);
+            motorCoilPivot.add(commRight);
+
+            // (가), (나) 도선 이름표 (코일 앞쪽 모서리 위쪽 외곽으로 빼서 화살표·글자와 간섭 제거)
+            const gaLine = createLeaderLine([-1.15, 0, 0.6], [-1.75, 0.85, 0.95], 0xfbbf24);
+            motorGroup.add(gaLine);
+            const gaLabel = createLabelSprite('(가)', 'rgba(217, 119, 6, 0.95)', '#ffffff', 0.88, 0.38);
+            gaLabel.position.set(-1.85, 0.92, 1.0);
+            motorGroup.add(gaLabel);
+
+            const naLine = createLeaderLine([1.15, 0, 0.6], [1.75, 0.85, 0.95], 0x34d399);
+            motorGroup.add(naLine);
+            const naLabel = createLabelSprite('(나)', 'rgba(5, 150, 105, 0.95)', '#ffffff', 0.88, 0.38);
+            naLabel.position.set(1.85, 0.92, 1.0);
+            motorGroup.add(naLabel);
+
+            // 4. 고정 브러시 & L자형 금속 지지대 + 고정 나사 (교과서 디테일)
+            const brushMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.7 });
+            const brushGeo = new THREE.BoxGeometry(0.12, 0.75, 0.55);
+            const leftBrush = new THREE.Mesh(brushGeo, brushMat);
+            leftBrush.position.set(-0.48, 0.25, 1.85);
+            leftBrush.rotation.z = -0.15;
+            motorGroup.add(leftBrush);
+
+            const rightBrush = new THREE.Mesh(brushGeo, brushMat);
+            rightBrush.position.set(0.48, 0.25, 1.85);
+            rightBrush.rotation.z = 0.15;
+            motorGroup.add(rightBrush);
+
+            // 받침 발판 & 나사
+            const footGeo = new THREE.BoxGeometry(0.55, 0.1, 0.55);
+            const leftFoot = new THREE.Mesh(footGeo, brushMat);
+            leftFoot.position.set(-0.72, -0.1, 1.85);
+            motorGroup.add(leftFoot);
+
+            const rightFoot = new THREE.Mesh(footGeo, brushMat);
+            rightFoot.position.set(0.72, -0.1, 1.85);
+            motorGroup.add(rightFoot);
+
+            const screwGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.22, 16);
+            const screwMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 });
+            const leftScrew = new THREE.Mesh(screwGeo, screwMat);
+            leftScrew.position.set(-0.78, 0.02, 1.85);
+            motorGroup.add(leftScrew);
+
+            const rightScrew = new THREE.Mesh(screwGeo, screwMat);
+            rightScrew.position.set(0.78, 0.02, 1.85);
+            motorGroup.add(rightScrew);
+
+            // 외부 연결 도선 & 전원 극성 표시
+            const extWireGeo = new THREE.CylinderGeometry(0.035, 0.035, 1.4, 12);
+            extWireGeo.rotateZ(Math.PI / 2);
+            const extLeftWire = new THREE.Mesh(extWireGeo, screwMat);
+            extLeftWire.position.set(-1.45, -0.05, 1.85);
+            motorGroup.add(extLeftWire);
+
+            const extRightWire = new THREE.Mesh(extWireGeo, screwMat);
+            extRightWire.position.set(1.45, -0.05, 1.85);
+            motorGroup.add(extRightWire);
+
+            motorLeftTermLabel = createLabelSprite('(+)극', 'rgba(220, 38, 38, 0.92)', '#ffffff', 0.95, 0.38);
+            motorLeftTermLabel.position.set(-2.25, -0.1, 1.95);
+            motorGroup.add(motorLeftTermLabel);
+
+            motorRightTermLabel = createLabelSprite('(-)극', 'rgba(37, 99, 235, 0.92)', '#ffffff', 0.95, 0.38);
+            motorRightTermLabel.position.set(2.25, -0.1, 1.95);
+            motorGroup.add(motorRightTermLabel);
+
+            // 5. 전동기 전류 화살표 (빨간색 - 코일 안쪽 옆면에 배치하여 힘 화살표/라벨과 분리)
+            motorCurrentArrows = new THREE.Group();
+            motorCurrentArrows.position.set(0, 0.3, 0);
+            const curGa = create3DArrow(0.95, 0xef4444, 0.042, 0.11, 0.24);
+            curGa.position.set(-0.85, 0.05, -0.2);
+            motorCurrentArrows.add(curGa);
+
+            const curNa = create3DArrow(0.95, 0xef4444, 0.042, 0.11, 0.24);
+            curNa.position.set(0.85, 0.05, -0.2);
+            motorCurrentArrows.add(curNa);
+            motorGroup.add(motorCurrentArrows);
+
+            // 6. 전동기 힘 화살표 ((가)와 (나)가 받는 힘, 보라색 + 화살표 끝단 바깥쪽 라벨)
+            motorForceArrows = new THREE.Group();
+            motorForceArrows.position.set(0, 0.3, 0);
+
+            const forceGa = create3DArrow(1.25, 0xa855f7, 0.055, 0.14, 0.3);
+            forceGa.position.set(-1.25, 0, -0.2);
+            motorForceArrows.add(forceGa);
+
+            const forceNa = create3DArrow(1.25, 0xa855f7, 0.055, 0.14, 0.3);
+            forceNa.position.set(1.25, 0, -0.2);
+            motorForceArrows.add(forceNa);
+
+            const forceGaLabel = createLabelSprite('(가) 힘', 'rgba(126, 34, 206, 0.95)', '#ffffff', 1.05, 0.38);
+            forceGaLabel.position.set(-1.35, -1.7, -0.2);
+            motorForceArrows.add(forceGaLabel);
+
+            const forceNaLabel = createLabelSprite('(나) 힘', 'rgba(126, 34, 206, 0.95)', '#ffffff', 1.05, 0.38);
+            forceNaLabel.position.set(1.35, 1.7, -0.2);
+            motorForceArrows.add(forceNaLabel);
+
+            motorGroup.add(motorForceArrows);
+        }
+
+        // =========================================================================
+        // 3. 시뮬레이션 상태 업데이트 및 물리 계산 (오른손 법칙 100% 정합)
+        // =========================================================================
+
+        function switchMode(newMode) {
+            state.mode = newMode;
+            const tabSwing = document.getElementById('tab-swing');
+            const tabMotor = document.getElementById('tab-motor');
+            const panelSwing = document.getElementById('panel-swing');
+            const panelMotor = document.getElementById('panel-motor');
+
+            if (newMode === 'swing') {
+                tabSwing.className = 'tab-active flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5';
+                tabMotor.className = 'text-slate-600 hover:text-slate-900 flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5';
+                panelSwing.classList.remove('hidden');
+                panelMotor.classList.add('hidden');
+                swingGroup.visible = true;
+                motorGroup.visible = false;
+                document.getElementById('toggle-label-polarity').classList.remove('hidden');
+                document.getElementById('motor-individual-force-toggles').classList.add('hidden');
+                document.getElementById('label-toggle-force').textContent = '힘 방향 (F)';
+                document.getElementById('sim-status-badge').textContent = '전기 그네 실험: 조건을 설정하고 움직일 방향을 예측해 보세요!';
+            } else {
+                tabMotor.className = 'tab-active flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5';
+                tabSwing.className = 'text-slate-600 hover:text-slate-900 flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5';
+                panelMotor.classList.remove('hidden');
+                panelSwing.classList.add('hidden');
+                swingGroup.visible = false;
+                motorGroup.visible = true;
+                document.getElementById('toggle-label-polarity').classList.add('hidden');
+                document.getElementById('motor-individual-force-toggles').classList.remove('hidden');
+                document.getElementById('label-toggle-force').textContent = '전체 힘 (F)';
+                document.getElementById('sim-status-badge').textContent = '전동기 원리: (가)와 (나) 도선이 받는 힘의 방향을 각각 예측해 보세요!';
+            }
+            resetCamera();
+        }
+
+        // 전원 극성 / 자석 극성 라벨 표시·숨김 토글 함수
+        function toggleLabelVisibility(type) {
+            state.showLabels[type] = !state.showLabels[type];
+            const isVisible = state.showLabels[type];
+            const btn = document.getElementById(`toggle-label-${type}`);
+            const badge = document.getElementById(`badge-label-${type}`);
+
+            if (btn && badge) {
+                if (isVisible) {
+                    btn.classList.remove('bg-slate-800', 'border-slate-600');
+                    btn.classList.add('bg-blue-950/90', 'border-blue-400');
+                    badge.textContent = '표시중';
+                    badge.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500 text-white';
+                } else {
+                    btn.classList.remove('bg-blue-950/90', 'border-blue-400');
+                    btn.classList.add('bg-slate-800', 'border-slate-600');
+                    badge.textContent = '숨김';
+                    badge.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300';
+                }
+            }
+
+            updateSwingVisuals();
+            updateMotorVisuals();
+        }
+
+        // 화살표 개별 표시/숨김 토글 함수
+        function toggleArrowVisibility(type) {
+            state.showArrows[type] = !state.showArrows[type];
+            const isVisible = state.showArrows[type];
+
+            // 전동기에서 전체 힘(force)을 켜면 (가)/(나) 개별 상태도 동기화
+            if (type === 'force') {
+                state.showArrows.forceGa = isVisible;
+                state.showArrows.forceNa = isVisible;
+            } else if (type === 'forceGa' || type === 'forceNa') {
+                state.showArrows.force = state.showArrows.forceGa && state.showArrows.forceNa;
+            }
+
+            syncArrowToggleUI();
+            updateSwingVisuals();
+            updateMotorVisuals();
+        }
+
+        function syncArrowToggleUI() {
+            const types = ['current', 'magnetic', 'force', 'forceGa', 'forceNa'];
+            types.forEach(t => {
+                const isVisible = state.showArrows[t];
+                const btn = document.getElementById(`toggle-arrow-${t}`);
+                const badge = document.getElementById(`badge-arrow-${t}`);
+                if (!btn || !badge) return;
+
+                if (isVisible) {
+                    btn.classList.remove('bg-slate-800', 'border-slate-600');
+                    btn.classList.add('bg-blue-950/90', 'border-blue-400');
+                    badge.textContent = '표시중';
+                    badge.className = (t === 'forceGa' || t === 'forceNa')
+                        ? 'text-[9px] font-bold px-1 py-0.5 rounded bg-blue-500 text-white'
+                        : 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500 text-white';
+                } else {
+                    btn.classList.remove('bg-blue-950/90', 'border-blue-400');
+                    btn.classList.add('bg-slate-800', 'border-slate-600');
+                    badge.textContent = '숨김';
+                    badge.className = (t === 'forceGa' || t === 'forceNa')
+                        ? 'text-[9px] font-bold px-1 py-0.5 rounded bg-slate-700 text-slate-300'
+                        : 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300';
+                }
+            });
+        }
+
+        // --- [모드 1] 전기 그네 로직 ---
+        function setCurrentStrength(targetMode, val) {
+            const strength = parseInt(val, 10);
+            const strengthText = `${strength}단계`;
+            if (targetMode === 'swing') {
+                state.swing.currentStrength = strength;
+                const label = document.getElementById('label-swing-strength');
+                if (label) label.textContent = strengthText;
+                if (state.swing.powerOn) {
+                    const actualDir = getSwingForceDirection();
+                    const swingAngle = 0.22 + (strength - 1) * 0.14;
+                    state.swing.targetAngle = (actualDir === 'outward') ? swingAngle : -swingAngle;
+                }
+                updateSwingVisuals();
+            } else if (targetMode === 'motor') {
+                state.motor.currentStrength = strength;
+                const label = document.getElementById('label-motor-strength');
+                if (label) label.textContent = strengthText;
+                updateMotorVisuals();
+            }
+        }
+
+        function getSwingForceDirection() {
+            // 오른손 법칙 (F = I x B):
+            // currentDir = 1 (바깥->안, -Z), magnetDir = 1 (아래 N -> 위 S, +Y) => (-Z) x (+Y) = +X (outward, 바깥쪽)
+            const product = state.swing.currentDir * state.swing.magnetDir;
+            return product === 1 ? 'outward' : 'inward';
+        }
+
+        function toggleSwingCurrent() {
+            state.swing.currentDir *= -1;
+            resetSwingExperimentState();
+            updateSwingVisuals();
+        }
+
+        function toggleSwingMagnet() {
+            state.swing.magnetDir *= -1;
+            resetSwingExperimentState();
+            updateSwingVisuals();
+        }
+
+        function setTextbookCase(caseType) {
+            if (caseType === 'default') {
+                state.swing.currentDir = 1;
+                state.swing.magnetDir = 1;
+            } else if (caseType === 'current') {
+                state.swing.currentDir = -1;
+                state.swing.magnetDir = 1;
+            } else if (caseType === 'magnet') {
+                state.swing.currentDir = 1;
+                state.swing.magnetDir = -1;
+            } else if (caseType === 'both') {
+                state.swing.currentDir = -1;
+                state.swing.magnetDir = -1;
+            }
+            resetSwingExperimentState();
+            updateSwingVisuals();
+        }
+
+        function resetSwingExperimentState() {
+            state.swing.powerOn = false;
+            state.swing.targetAngle = 0;
+            state.swing.prediction = null;
+
+            document.getElementById('pred-outward').className = 'p-3.5 rounded-xl border-2 border-slate-200 hover:border-blue-400 text-left transition flex flex-col gap-1';
+            document.getElementById('pred-inward').className = 'p-3.5 rounded-xl border-2 border-slate-200 hover:border-blue-400 text-left transition flex flex-col gap-1';
+            document.getElementById('swing-feedback').classList.add('hidden');
+            document.getElementById('label-swing-power').textContent = '전원 스위치 켜기 (결과 확인)';
+            document.getElementById('btn-swing-power').className = 'w-full py-3.5 rounded-xl font-bold text-base text-white bg-blue-600 hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2 pulse-hint';
+        }
+
+        function selectSwingPrediction(choice) {
+            state.swing.prediction = choice;
+            const btnOut = document.getElementById('pred-outward');
+            const btnIn = document.getElementById('pred-inward');
+
+            btnOut.className = choice === 'outward'
+                ? 'p-3.5 rounded-xl border-2 border-blue-600 bg-blue-50/70 text-left transition flex flex-col gap-1 shadow-xs'
+                : 'p-3.5 rounded-xl border-2 border-slate-200 hover:border-blue-400 text-left transition flex flex-col gap-1 opacity-75';
+
+            btnIn.className = choice === 'inward'
+                ? 'p-3.5 rounded-xl border-2 border-blue-600 bg-blue-50/70 text-left transition flex flex-col gap-1 shadow-xs'
+                : 'p-3.5 rounded-xl border-2 border-slate-200 hover:border-blue-400 text-left transition flex flex-col gap-1 opacity-75';
+
+            if (state.swing.powerOn) {
+                evaluateSwingFeedback();
+            }
+        }
+
+        function toggleSwingPower() {
+            state.swing.powerOn = !state.swing.powerOn;
+            const btn = document.getElementById('btn-swing-power');
+            const label = document.getElementById('label-swing-power');
+
+            if (state.swing.powerOn) {
+                const actualDir = getSwingForceDirection();
+                const swingAngle = 0.22 + (state.swing.currentStrength - 1) * 0.14;
+                state.swing.targetAngle = (actualDir === 'outward') ? swingAngle : -swingAngle;
+
+                btn.className = 'w-full py-3.5 rounded-xl font-bold text-base text-white bg-slate-700 hover:bg-slate-800 shadow-md transition flex items-center justify-center gap-2';
+                label.textContent = '전원 스위치 끄기 (원위치)';
+
+                evaluateSwingFeedback();
+                document.getElementById('sim-status-badge').textContent =
+                    `전원 ON: 전기 그네가 말굽자석 ${actualDir === 'outward' ? '바깥쪽(➡️)' : '안쪽(⬅️)'}으로 힘을 받아 움직입니다!`;
+            } else {
+                state.swing.targetAngle = 0;
+                btn.className = 'w-full py-3.5 rounded-xl font-bold text-base text-white bg-blue-600 hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2';
+                label.textContent = '전원 스위치 켜기 (결과 확인)';
+                document.getElementById('sim-status-badge').textContent = '전원 OFF: 전기 그네가 원래 위치로 돌아왔습니다.';
+            }
+            updateSwingVisuals();
+        }
+
+        function evaluateSwingFeedback() {
+            const feedbackBox = document.getElementById('swing-feedback');
+            const actual = getSwingForceDirection();
+            const actualKorean = actual === 'outward' ? '말굽자석 바깥쪽 (➡️)' : '말굽자석 안쪽 (⬅️)';
+            const isBothFlipped = (state.swing.currentDir === -1 && state.swing.magnetDir === -1);
+
+            feedbackBox.classList.remove('hidden');
+
+            let extraTip = '';
+            if (isBothFlipped) {
+                extraTip = `<div class="mt-2 pt-2 border-t border-current/20 font-semibold">💡 핵심 발견! 전류와 자기장의 방향이 <strong>모두 바뀌면</strong> 힘의 방향은 처음과 같아져 <strong>말굽자석 바깥쪽</strong>으로 움직입니다!</div>`;
+            }
+
+            if (!state.swing.prediction) {
+                feedbackBox.className = 'mt-4 p-4 rounded-xl text-sm border bg-blue-50 border-blue-200 text-blue-900';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold mb-1">⚡ 실험 결과: ${actualKorean}으로 움직입니다!</div>
+                    <p class="text-xs leading-relaxed">오른손 네 손가락을 자기장 방향(${state.swing.magnetDir === 1 ? '위쪽 ↑' : '아래쪽 ↓'})으로 펴고, 엄지를 전류 방향(${state.swing.currentDir === 1 ? '안쪽' : '바깥쪽'})으로 향하면 손바닥이 <strong>${actualKorean}</strong>을 향합니다.</p>
+                    ${extraTip}
+                `;
+            } else if (state.swing.prediction === actual) {
+                feedbackBox.className = 'mt-4 p-4 rounded-xl text-sm border bg-emerald-50 border-emerald-300 text-emerald-900';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold text-emerald-700 mb-1">🎉 정답입니다! 정확히 예측했어요!</div>
+                    <p class="text-xs leading-relaxed">오른손 법칙에 따라 코일은 <strong>${actualKorean}</strong>으로 힘을 받아 움직입니다.</p>
+                    ${extraTip}
+                `;
+            } else {
+                feedbackBox.className = 'mt-4 p-4 rounded-xl text-sm border bg-rose-50 border-rose-300 text-rose-900';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold text-rose-700 mb-1">🧐 아쉽네요! 실제로는 '${actualKorean}'으로 움직입니다.</div>
+                    <p class="text-xs leading-relaxed">상단의 <strong>[전류 방향]</strong>, <strong>[자기장 방향]</strong> 버튼을 켜고 <strong>[오른손 법칙 힌트]</strong>를 참고해 손바닥 방향을 다시 확인해 보세요!</p>
+                    ${extraTip}
+                `;
+            }
+        }
+
+        function updateSwingVisuals() {
+            const curLabel = document.getElementById('label-current-dir');
+            const magLabel = document.getElementById('label-magnet-dir');
+
+            if (curLabel) {
+                curLabel.textContent = state.swing.currentDir === 1 ? '바깥쪽 → 안쪽' : '안쪽 → 바깥쪽';
+            }
+            if (magLabel) {
+                magLabel.textContent = state.swing.magnetDir === 1 ? '아래 N극 / 위 S극' : '위 N극 / 아래 S극';
+            }
+
+            // 자석 극성 색상 및 라벨 갱신
+            if (swingTopPole && swingBottomPole) {
+                const showPoles = state.showLabels.magnetPoles;
+                swingTopLabel.visible = showPoles;
+                swingBottomLabel.visible = showPoles;
+
+                if (!showPoles) {
+                    swingTopPole.material.color.setHex(0x94a3b8);
+                    swingBottomPole.material.color.setHex(0x94a3b8);
+                } else if (state.swing.magnetDir === 1) {
+                    swingTopPole.material.color.setHex(0x2563eb); // S극 (파랑)
+                    swingBottomPole.material.color.setHex(0xdc2626); // N극 (빨강)
+                    swingTopLabel.material.map = createLabelSprite('S극', 'rgba(37, 99, 235, 0.92)', '#ffffff', 1.05, 0.42).material.map;
+                    swingBottomLabel.material.map = createLabelSprite('N극', 'rgba(220, 38, 38, 0.92)', '#ffffff', 1.05, 0.42).material.map;
+                } else {
+                    swingTopPole.material.color.setHex(0xdc2626); // N극 (빨강)
+                    swingBottomPole.material.color.setHex(0x2563eb); // S극 (파랑)
+                    swingTopLabel.material.map = createLabelSprite('N극', 'rgba(220, 38, 38, 0.92)', '#ffffff', 1.05, 0.42).material.map;
+                    swingBottomLabel.material.map = createLabelSprite('S극', 'rgba(37, 99, 235, 0.92)', '#ffffff', 1.05, 0.42).material.map;
+                }
+            }
+
+            // 전원 극성 라벨 갱신
+            if (swingFrontWireLabel && swingBackWireLabel) {
+                const showPolarity = state.showLabels.polarity;
+                swingFrontWireLabel.visible = showPolarity;
+                swingBackWireLabel.visible = showPolarity;
+
+                if (state.swing.currentDir === 1) {
+                    swingFrontWireLabel.material.map = createLabelSprite('(+)극 연결', 'rgba(220, 38, 38, 0.9)', '#ffffff', 1.35, 0.42).material.map;
+                    swingBackWireLabel.material.map = createLabelSprite('(-)극 연결', 'rgba(37, 99, 235, 0.9)', '#ffffff', 1.35, 0.42).material.map;
+                } else {
+                    swingFrontWireLabel.material.map = createLabelSprite('(-)극 연결', 'rgba(37, 99, 235, 0.9)', '#ffffff', 1.35, 0.42).material.map;
+                    swingBackWireLabel.material.map = createLabelSprite('(+)극 연결', 'rgba(220, 38, 38, 0.9)', '#ffffff', 1.35, 0.42).material.map;
+                }
+            }
+
+            // 화살표 표시 여부 및 방향 반영
+            if (swingMagneticArrows) {
+                swingMagneticArrows.visible = state.showArrows.magnetic;
+                for (let i = 0; i < 3; i++) {
+                    const arrow = swingMagneticArrows.children[i];
+                    arrow.rotation.z = (state.swing.magnetDir === 1) ? 0 : Math.PI;
+                    arrow.position.y = (state.swing.magnetDir === 1) ? -0.88 : 0.88;
+                }
+            }
+
+            if (swingCurrentArrows) {
+                swingCurrentArrows.visible = state.showArrows.current;
+                const arrow = swingCurrentArrows.children[0];
+                const scaleFactor = 0.72 + (state.swing.currentStrength - 1) * 0.28;
+                arrow.scale.set(1, scaleFactor, 1);
+                arrow.rotation.x = (state.swing.currentDir === 1) ? -Math.PI / 2 : Math.PI / 2;
+                arrow.position.z = (state.swing.currentDir === 1) ? 0.65 * scaleFactor : -0.65 * scaleFactor;
+            }
+
+            if (swingForceArrow) {
+                swingForceArrow.visible = state.showArrows.force;
+                const actualDir = getSwingForceDirection();
+                const fArrow = swingForceArrow.children[0];
+                const fLabel = swingForceArrow.children[1];
+                const scaleFactor = 0.72 + (state.swing.currentStrength - 1) * 0.28;
+                fArrow.scale.set(1, scaleFactor, 1);
+                if (actualDir === 'outward') {
+                    fArrow.rotation.z = -Math.PI / 2; // +X
+                    fArrow.position.set(0.35, 0, 0);
+                    fLabel.position.set(1.95 + 0.4 * scaleFactor, 0.05, 0);
+                } else {
+                    fArrow.rotation.z = Math.PI / 2; // -X
+                    fArrow.position.set(-0.35, 0, 0);
+                    fLabel.position.set(-(1.95 + 0.4 * scaleFactor), 0.05, 0);
+                }
+            }
+        }
+
+        // --- [모드 2] 전동기 회전 원리 로직 ---
+        function getMotorForces() {
+            // 자기장은 항상 왼쪽 N -> 오른쪽 S (+X)
+            // currentDir = 1: (가) 안쪽(-Z) => (-Z) x (+X) = -Y (down, 아래쪽), (나) 바깥쪽(+Z) => (+Z) x (+X) = +Y (up, 위쪽)
+            if (state.motor.currentDir === 1) {
+                return { ga: 'down', na: 'up' };
+            } else {
+                return { ga: 'up', na: 'down' };
+            }
+        }
+
+        function toggleMotorCurrent() {
+            state.motor.currentDir *= -1;
+            state.motor.powerOn = false;
+            state.motor.rotationAngle = 0;
+            state.motor.targetRotationAngle = 0;
+            if (motorCoilPivot) motorCoilPivot.rotation.z = 0;
+            document.getElementById('label-motor-power').textContent = '전원 연결하여 반 바퀴 회전 확인';
+            document.getElementById('btn-motor-step').classList.add('hidden');
+            document.getElementById('motor-feedback').classList.add('hidden');
+            updateMotorVisuals();
+        }
+
+        function selectMotorPrediction(side, dir) {
+            if (side === 'ga') {
+                state.motor.predGa = dir;
+                document.getElementById('pred-ga-up').className = dir === 'up'
+                    ? 'py-2 px-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-800 text-xs font-bold transition'
+                    : 'py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition opacity-70';
+                document.getElementById('pred-ga-down').className = dir === 'down'
+                    ? 'py-2 px-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-800 text-xs font-bold transition'
+                    : 'py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition opacity-70';
+            } else {
+                state.motor.predNa = dir;
+                document.getElementById('pred-na-up').className = dir === 'up'
+                    ? 'py-2 px-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-800 text-xs font-bold transition'
+                    : 'py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition opacity-70';
+                document.getElementById('pred-na-down').className = dir === 'down'
+                    ? 'py-2 px-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-800 text-xs font-bold transition'
+                    : 'py-2 px-3 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold hover:border-blue-400 transition opacity-70';
+            }
+
+            if (state.motor.powerOn) {
+                evaluateMotorFeedback();
+            }
+        }
+
+        function toggleMotorPower() {
+            const label = document.getElementById('label-motor-power');
+            const stepBtn = document.getElementById('btn-motor-step');
+
+            if (!state.motor.powerOn) {
+                // 이미 반 바퀴(180도) 돈 상태라면 다시 누를 때 원위치(0도)로 되돌림
+                if (Math.abs(state.motor.rotationAngle) >= Math.PI - 0.01) {
+                    resetMotorPosition();
+                    return;
+                }
+
+                state.motor.powerOn = true;
+                const forces = getMotorForces();
+                state.motor.targetRotationAngle = (forces.ga === 'down') ? Math.PI : -Math.PI;
+
+                label.textContent = '반 바퀴 회전 중...';
+                stepBtn.classList.remove('hidden');
+
+                evaluateMotorFeedback();
+                const rotDirText = forces.ga === 'down' ? '반시계 방향(↺)' : '시계 방향(↻)';
+                document.getElementById('sim-status-badge').textContent =
+                    `전동기 작동: (가)는 ${forces.ga === 'down' ? '아래⬇️' : '위⬆️'}, (나)는 ${forces.na === 'up' ? '위⬆️' : '아래⬇️'} 힘을 받아 ${rotDirText}으로 반 바퀴(180°) 회전합니다!`;
+            } else {
+                state.motor.powerOn = false;
+                label.textContent = '계속 반 바퀴 회전';
+                document.getElementById('sim-status-badge').textContent = '전동기 일시 정지 상태입니다.';
+            }
+        }
+
+        function resetMotorPosition() {
+            state.motor.powerOn = false;
+            state.motor.rotationAngle = 0;
+            state.motor.targetRotationAngle = 0;
+            if (motorCoilPivot) motorCoilPivot.rotation.z = 0;
+            document.getElementById('label-motor-power').textContent = '전원 연결하여 반 바퀴 회전 확인';
+            document.getElementById('btn-motor-step').classList.add('hidden');
+            document.getElementById('sim-status-badge').textContent = '코일이 처음 위치(0°)로 돌아왔습니다.';
+            updateMotorVisuals();
+        }
+
+        function evaluateMotorFeedback() {
+            const feedbackBox = document.getElementById('motor-feedback');
+            const forces = getMotorForces();
+            const gaText = forces.ga === 'up' ? '위쪽(⬆️)' : '아래쪽(⬇️)';
+            const naText = forces.na === 'up' ? '위쪽(⬆️)' : '아래쪽(⬇️)';
+            const rotDir = forces.ga === 'down' ? '반시계 방향(↺)' : '시계 방향(↻)';
+
+            feedbackBox.classList.remove('hidden');
+
+            if (!state.motor.predGa || !state.motor.predNa) {
+                feedbackBox.className = 'mt-4 p-4 rounded-xl text-sm border bg-purple-50 border-purple-200 text-purple-950';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold mb-1">🔄 회전 분석 결과: ${rotDir} 회전!</div>
+                    <p class="text-xs leading-relaxed">왼쪽 <strong>(가)는 ${gaText}</strong>, 오른쪽 <strong>(나)는 ${naText}</strong>으로 서로 반대 방향의 힘을 받아 코일이 회전합니다.</p>
+                `;
+            } else if (state.motor.predGa === forces.ga && state.motor.predNa === forces.na) {
+                feedbackBox.className = 'mt-4 p-4 rounded-xl text-sm border bg-emerald-50 border-emerald-300 text-emerald-950';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold text-emerald-700 mb-1">🎉 완벽합니다! (가)와 (나) 모두 맞혔어요!</div>
+                    <p class="text-xs leading-relaxed"><strong>(가)는 ${gaText}</strong>, <strong>(나)는 ${naText}</strong>으로 힘을 받아 코일이 <strong>${rotDir}</strong>으로 회전합니다.</p>
+                `;
+            } else {
+                feedbackBox.className = 'mt-4 p-4 rounded-xl text-sm border bg-rose-50 border-rose-300 text-rose-950';
+                feedbackBox.innerHTML = `
+                    <div class="font-bold text-rose-700 mb-1">🧐 다시 확인해 볼까요?</div>
+                    <p class="text-xs leading-relaxed">자기장(N→S)은 오른쪽이지만, (가)와 (나)에 흐르는 <strong>전류 방향이 서로 반대</strong>이므로 <strong>(가)는 ${gaText}</strong>, <strong>(나)는 ${naText}</strong>으로 힘을 받습니다.</p>
+                `;
+            }
+        }
+
+        function updateMotorVisuals() {
+            const gaDesc = document.getElementById('motor-ga-current-desc');
+            const naDesc = document.getElementById('motor-na-current-desc');
+
+            // 자석 극성(N극/S극) 표시·숨김 반영
+            if (motorLeftNPole && motorRightSPole && motorNLabel && motorSLabel) {
+                const showPoles = state.showLabels.magnetPoles;
+                motorNLabel.visible = showPoles;
+                motorSLabel.visible = showPoles;
+                if (showPoles) {
+                    motorLeftNPole.material.color.setHex(0xdc2626);
+                    motorRightSPole.material.color.setHex(0x2563eb);
+                } else {
+                    motorLeftNPole.material.color.setHex(0x94a3b8);
+                    motorRightSPole.material.color.setHex(0x94a3b8);
+                }
+            }
+
+            if (state.motor.currentDir === 1) {
+                if (gaDesc) gaDesc.textContent = '전원 (+)극 연결 (안쪽으로 흐름)';
+                if (naDesc) naDesc.textContent = '전원 (-)극 연결 (바깥쪽으로 흐름)';
+                if (motorLeftTermLabel) motorLeftTermLabel.material.map = createLabelSprite('(+)극', 'rgba(220, 38, 38, 0.92)', '#ffffff', 0.95, 0.38).material.map;
+                if (motorRightTermLabel) motorRightTermLabel.material.map = createLabelSprite('(-)극', 'rgba(37, 99, 235, 0.92)', '#ffffff', 0.95, 0.38).material.map;
+            } else {
+                if (gaDesc) gaDesc.textContent = '전원 (-)극 연결 (바깥쪽으로 흐름)';
+                if (naDesc) naDesc.textContent = '전원 (+)극 연결 (안쪽으로 흐름)';
+                if (motorLeftTermLabel) motorLeftTermLabel.material.map = createLabelSprite('(-)극', 'rgba(37, 99, 235, 0.92)', '#ffffff', 0.95, 0.38).material.map;
+                if (motorRightTermLabel) motorRightTermLabel.material.map = createLabelSprite('(+)극', 'rgba(220, 38, 38, 0.92)', '#ffffff', 0.95, 0.38).material.map;
+            }
+
+            if (motorMagneticArrows) {
+                const isPastHalfway = Math.abs(state.motor.rotationAngle) > Math.PI / 2;
+                motorMagneticArrows.visible = !isPastHalfway && state.showArrows.magnetic;
+            }
+
+            if (motorCurrentArrows) {
+                const isPastHalfway = Math.abs(state.motor.rotationAngle) > Math.PI / 2;
+                motorCurrentArrows.visible = !isPastHalfway && state.showArrows.current;
+                const arrowGa = motorCurrentArrows.children[0];
+                const arrowNa = motorCurrentArrows.children[1];
+                const scaleFactor = 0.72 + (state.motor.currentStrength - 1) * 0.28;
+                arrowGa.scale.set(1, scaleFactor, 1);
+                arrowNa.scale.set(1, scaleFactor, 1);
+                if (state.motor.currentDir === 1) {
+                    arrowGa.rotation.x = -Math.PI / 2; // 안쪽 (-Z)
+                    arrowGa.position.z = 0.25 * scaleFactor;
+                    arrowNa.rotation.x = Math.PI / 2;  // 바깥쪽 (+Z)
+                    arrowNa.position.z = -0.65 * scaleFactor;
+                } else {
+                    arrowGa.rotation.x = Math.PI / 2;
+                    arrowGa.position.z = -0.65 * scaleFactor;
+                    arrowNa.rotation.x = -Math.PI / 2;
+                    arrowNa.position.z = 0.25 * scaleFactor;
+                }
+            }
+
+            if (motorForceArrows) {
+                const showGa = state.showArrows.force || state.showArrows.forceGa;
+                const showNa = state.showArrows.force || state.showArrows.forceNa;
+                const isPastHalfway = Math.abs(state.motor.rotationAngle) > Math.PI / 2;
+                motorForceArrows.visible = !isPastHalfway && (showGa || showNa);
+
+                const forces = getMotorForces();
+                const forceGa = motorForceArrows.children[0];
+                const forceNa = motorForceArrows.children[1];
+                const forceGaLabel = motorForceArrows.children[2];
+                const forceNaLabel = motorForceArrows.children[3];
+
+                const scaleFactor = 0.72 + (state.motor.currentStrength - 1) * 0.28;
+                forceGa.scale.set(1, scaleFactor, 1);
+                forceNa.scale.set(1, scaleFactor, 1);
+
+                forceGa.visible = showGa;
+                forceGaLabel.visible = showGa;
+                forceNa.visible = showNa;
+                forceNaLabel.visible = showNa;
+
+                forceGa.rotation.z = (forces.ga === 'up') ? 0 : Math.PI;
+                forceNa.rotation.z = (forces.na === 'up') ? 0 : Math.PI;
+
+                // 코일 회전각에 맞춰 (가), (나) 도선 위치를 따라가되 힘 화살표는 수직 방향 유지
+                const theta = state.motor.rotationAngle;
+                const armRadius = 1.25;
+                const gaX = -armRadius * Math.cos(theta);
+                const gaY = -armRadius * Math.sin(theta);
+                const naX = armRadius * Math.cos(theta);
+                const naY = armRadius * Math.sin(theta);
+
+                forceGa.position.set(gaX, gaY, -0.2);
+                forceNa.position.set(naX, naY, -0.2);
+
+                const labelOffsetY = 1.3 + 0.4 * scaleFactor;
+                forceGaLabel.position.set(gaX - 0.1, gaY + ((forces.ga === 'up') ? labelOffsetY : -labelOffsetY), -0.2);
+                forceNaLabel.position.set(naX + 0.1, naY + ((forces.na === 'up') ? labelOffsetY : -labelOffsetY), -0.2);
+            }
+        }
+
+        // =========================================================================
+        // 4. 카메라 궤도 제어, 크기 조절 및 애니메이션 루프
+        // =========================================================================
+        function updateCameraPosition() {
+            if (!camera) return;
+            camera.position.x = cameraRadius * Math.sin(cameraPhi) * Math.sin(cameraTheta);
+            camera.position.y = cameraRadius * Math.cos(cameraPhi) + 0.5;
+            camera.position.z = cameraRadius * Math.sin(cameraPhi) * Math.cos(cameraTheta);
+            camera.lookAt(0, 0.35, 0);
+        }
+
+        function setModelScale(val) {
+            modelScale = Math.min(1.6, Math.max(0.6, parseFloat(val)));
+            if (swingGroup) swingGroup.scale.set(modelScale, modelScale, modelScale);
+            if (motorGroup) motorGroup.scale.set(modelScale, modelScale, modelScale);
+
+            const slider = document.getElementById('scale-slider');
+            const label = document.getElementById('scale-value-label');
+            if (slider) slider.value = modelScale.toFixed(2);
+            if (label) label.textContent = `${Math.round(modelScale * 100)}%`;
+        }
+
+        function changeModelScale(delta) {
+            setModelScale(modelScale + delta);
+        }
+
+        function resetCamera() {
+            if (state.mode === 'swing') {
+                cameraTheta = 0.42;
+                cameraPhi = 1.05;
+                cameraRadius = 11.2;
+            } else {
+                cameraTheta = 0.25;
+                cameraPhi = 1.02;
+                cameraRadius = 9.5;
+            }
+            setModelScale(1.0);
+            updateCameraPosition();
+        }
+
+        function toggleRightHandGuide() {
+            const card = document.getElementById('right-hand-card');
+            card.classList.toggle('hidden');
+        }
+
+        function setupInteractions(container) {
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+
+                cameraTheta -= deltaX * 0.008;
+                cameraPhi = Math.max(0.25, Math.min(Math.PI - 0.25, cameraPhi - deltaY * 0.008));
+                updateCameraPosition();
+
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            // 마우스 휠로 실험 장치 크기 조절
+            container.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.08 : -0.08;
+                changeModelScale(delta);
+            }, { passive: false });
+
+            // 모바일 터치 회전 지원
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', (e) => {
+                if (!isDragging || e.touches.length !== 1) return;
+                const deltaX = e.touches[0].clientX - previousMousePosition.x;
+                const deltaY = e.touches[0].clientY - previousMousePosition.y;
+
+                cameraTheta -= deltaX * 0.009;
+                cameraPhi = Math.max(0.25, Math.min(Math.PI - 0.25, cameraPhi - deltaY * 0.009));
+                updateCameraPosition();
+
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }, { passive: true });
+
+            container.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container || !renderer || !camera) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. 전기 그네 부드러운 기울기 움직임
+            if (state.mode === 'swing' && swingCoilPivot) {
+                state.swing.currentAngle += (state.swing.targetAngle - state.swing.currentAngle) * 0.1;
+                swingCoilPivot.rotation.z = state.swing.currentAngle;
+            }
+
+            // 2. 전동기 반 바퀴(180도) 회전 후 정지
+            if (state.mode === 'motor' && motorCoilPivot) {
+                if (state.motor.powerOn) {
+                    const forces = getMotorForces();
+                    const baseSpeed = 0.014 + (state.motor.currentStrength - 1) * 0.014;
+                    const speed = (forces.ga === 'down') ? baseSpeed : -baseSpeed;
+                    state.motor.rotationAngle += speed;
+
+                    // 목표 각도(반 바퀴 = ±Math.PI)에 도달하면 정확히 멈춤
+                    if (Math.abs(state.motor.rotationAngle) >= Math.PI) {
+                        state.motor.rotationAngle = state.motor.targetRotationAngle;
+                        state.motor.powerOn = false;
+                        const label = document.getElementById('label-motor-power');
+                        if (label) label.textContent = '처음 위치로 되돌리기';
+                        document.getElementById('sim-status-badge').textContent =
+                            '반 바퀴(180°) 회전 완료 후 정지했습니다!';
+                    }
+
+                    motorCoilPivot.rotation.z = state.motor.rotationAngle;
+
+                    // 0도~90도 구간에서는 전자기력 화살표가 코일을 따라가고, 90도~180도 구간에서는 모든 화살표 생략
+                    updateMotorVisuals();
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // 페이지 로드 완료 시 초기화 및 루프 시작
+        window.onload = function () {
+            initThreeJS();
+            animate();
+        };
+    </script>
+</body>
+</html>
